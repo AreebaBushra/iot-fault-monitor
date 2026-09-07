@@ -60,17 +60,6 @@
   }
   .dot.live { background: var(--green); }
 
-  #apiUrl {
-    background: var(--panel);
-    border: 1px solid var(--panel-border);
-    color: var(--text);
-    padding: 4px 8px;
-    border-radius: 4px;
-    font-family: monospace;
-    font-size: 12px;
-    width: 220px;
-  }
-
   .grid {
     display: grid;
     grid-template-columns: 340px 1fr;
@@ -200,7 +189,6 @@
   <div class="conn-row">
     <span class="dot" id="connDot"></span>
     <span id="connText">not connected</span>
-    <input id="apiUrl" value="" spellcheck="false">
   </div>
 </header>
 
@@ -267,7 +255,7 @@
     <div class="panel">
       <h2>Alert Log</h2>
       <div class="alert-list" id="alertList">
-        <div class="alert-item"><span>no requests yet</span></div>
+        <div class="alert-item" id="alertPlaceholder"><span>no requests yet</span></div>
       </div>
     </div>
   </div>
@@ -276,7 +264,6 @@
 <script>
 const connDot = document.getElementById('connDot');
 const connText = document.getElementById('connText');
-const apiUrlInput = document.getElementById('apiUrl');
 const predictBtn = document.getElementById('predictBtn');
 const alertList = document.getElementById('alertList');
 
@@ -359,6 +346,9 @@ function pushPoint(latencyMs, memoryKb) {
 }
 
 function addAlert(text, isFailure) {
+  const placeholder = document.getElementById('alertPlaceholder');
+  if (placeholder) placeholder.remove();
+
   const el = document.createElement('div');
   el.className = 'alert-item' + (isFailure ? ' failure' : '');
   const time = document.createElement('span');
@@ -375,7 +365,7 @@ function addAlert(text, isFailure) {
 
 async function checkConnection() {
   try {
-    const res = await fetch(apiUrlInput.value + '/', { cache: 'no-store' });
+    const res = await fetch('/', { cache: 'no-store' });
     if (res.ok) {
       connDot.classList.add('live');
       connText.textContent = 'connected';
@@ -401,7 +391,7 @@ async function runPrediction() {
   };
 
   try {
-    const res = await fetch(apiUrlInput.value + '/predict', {
+    const res = await fetch('/predict', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
@@ -437,8 +427,6 @@ async function runPrediction() {
 }
 
 predictBtn.addEventListener('click', runPrediction);
-apiUrlInput.addEventListener('change', checkConnection);
-
 checkConnection();
 setInterval(checkConnection, 8000);
 </script>
