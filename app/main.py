@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
 app = FastAPI(title="IoT Sensor Fault Detector (Edge-Constrained)")
@@ -56,8 +57,14 @@ def get_memory_kb() -> float:
     return resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
 
 
-@app.get("/")
+@app.get("/", response_class=HTMLResponse)
 def root():
+    with open("dashboard.html") as f:
+        return f.read()
+
+
+@app.get("/health")
+def health():
     return {"status": "ok", "model": MODEL_PATH, "threshold": THRESHOLD}
 
 

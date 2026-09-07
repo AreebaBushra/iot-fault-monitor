@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fault Detector — Live Monitor</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #14181c;
+    --panel: #1b2127;
+    --panel-border: #2a323a;
+    --text: #d8dee4;
+    --muted: #7c8892;
+    --amber: #e8a33d;
+    --green: #4caf7d;
+    --red: #d9584f;
+    --cyan: #4dabc4;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    padding: 24px;
+  }
+
+  header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 20px;
+    border-bottom: 1px solid var(--panel-border);
+    padding-bottom: 14px;
+  }
+
+  h1 {
+    font-size: 20px;
+    font-weight: 600;
+    margin: 0;
+    letter-spacing: 0.3px;
+  }
+
+  .conn-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--muted);
+  }
+
+  .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--red);
+  }
+  .dot.live { background: var(--green); }
+
+  #apiUrl {
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    color: var(--text);
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-family: monospace;
+    font-size: 12px;
+    width: 220px;
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: 340px 1fr;
+    gap: 18px;
+  }
+
+  @media (max-width: 900px) {
+    .grid { grid-template-columns: 1fr; }
+  }
+
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    border-radius: 6px;
+    padding: 18px;
+  }
+
+  .panel h2 {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--muted);
+    margin: 0 0 14px 0;
+    font-weight: 600;
+  }
+
+  label {
+    display: block;
+    font-size: 12px;
+    color: var(--muted);
+    margin: 10px 0 4px;
+  }
+
+  input, select {
+    width: 100%;
+    background: #10141a;
+    border: 1px solid var(--panel-border);
+    color: var(--text);
+    padding: 8px 10px;
+    border-radius: 4px;
+    font-size: 13px;
+  }
+
+  button {
+    width: 100%;
+    margin-top: 16px;
+    background: var(--cyan);
+    color: #0c1013;
+    border: none;
+    padding: 10px;
+    border-radius: 4px;
+    font-weight: 600;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  button:hover { opacity: 0.9; }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .result-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-bottom: 18px;
+  }
+
+  .stat {
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    border-radius: 6px;
+    padding: 14px 16px;
+  }
+
+  .stat .label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: var(--muted);
+    margin-bottom: 6px;
+  }
+
+  .stat .value {
+    font-family: monospace;
+    font-size: 20px;
+    font-weight: 600;
+  }
+
+  .stat.failure .value { color: var(--red); }
+  .stat.ok .value { color: var(--green); }
+
+  .charts {
+    display: grid;
+    grid-template-rows: auto auto;
+    gap: 18px;
+  }
+
+  canvas { max-height: 220px; }
+
+  .alert-list {
+    max-height: 220px;
+    overflow-y: auto;
+    font-family: monospace;
+    font-size: 12px;
+  }
+
+  .alert-item {
+    padding: 6px 0;
+    border-bottom: 1px solid var(--panel-border);
+    display: flex;
+    justify-content: space-between;
+    color: var(--muted);
+  }
+
+  .alert-item.failure { color: var(--red); }
+
+  .footnote {
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 14px;
+    line-height: 1.5;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Fault Detector — Live Monitor</h1>
+  <div class="conn-row">
+    <span class="dot" id="connDot"></span>
+    <span id="connText">not connected</span>
+    <input id="apiUrl" value="" spellcheck="false">
+  </div>
+</header>
+
+<div class="grid">
+  <div class="panel">
+    <h2>Sensor Reading</h2>
+
+    <label>Machine Type</label>
+    <select id="machineType">
+      <option value="L">L — Low</option>
+      <option value="M">M — Medium</option>
+      <option value="H">H — High</option>
+    </select>
+
+    <label>Air Temperature (K)</label>
+    <input type="number" id="airTemp" value="300.0" step="0.1">
+
+    <label>Process Temperature (K)</label>
+    <input type="number" id="processTemp" value="310.0" step="0.1">
+
+    <label>Rotational Speed (rpm)</label>
+    <input type="number" id="rpm" value="1500" step="1">
+
+    <label>Torque (Nm)</label>
+    <input type="number" id="torque" value="40" step="0.1">
+
+    <label>Tool Wear (min)</label>
+    <input type="number" id="toolWear" value="100" step="1">
+
+    <button id="predictBtn">Run Prediction</button>
+
+    <div class="footnote">
+      Sends a reading to <code>/predict</code>. Each response also
+      updates the resource-usage charts on the right, pulled from the
+      running container's <code>/metrics</code>.
+    </div>
+  </div>
+
+  <div class="charts">
+    <div class="result-row">
+      <div class="stat" id="statResult">
+        <div class="label">Prediction</div>
+        <div class="value">—</div>
+      </div>
+      <div class="stat">
+        <div class="label">Probability</div>
+        <div class="value" id="statProb">—</div>
+      </div>
+      <div class="stat">
+        <div class="label">Latency</div>
+        <div class="value" id="statLatency">—</div>
+      </div>
+      <div class="stat">
+        <div class="label">Memory</div>
+        <div class="value" id="statMemory">—</div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Latency &amp; Memory Over Time</h2>
+      <canvas id="resourceChart"></canvas>
+    </div>
+
+    <div class="panel">
+      <h2>Alert Log</h2>
+      <div class="alert-list" id="alertList">
+        <div class="alert-item"><span>no requests yet</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const connDot = document.getElementById('connDot');
+const connText = document.getElementById('connText');
+const apiUrlInput = document.getElementById('apiUrl');
+const predictBtn = document.getElementById('predictBtn');
+const alertList = document.getElementById('alertList');
+
+const statResult = document.querySelector('#statResult .value');
+const statResultBox = document.getElementById('statResult');
+const statProb = document.getElementById('statProb');
+const statLatency = document.getElementById('statLatency');
+const statMemory = document.getElementById('statMemory');
+
+const maxPoints = 30;
+const labels = [];
+const latencyData = [];
+const memoryData = [];
+
+const ctx = document.getElementById('resourceChart').getContext('2d');
+const chart = new Chart(ctx, {
+  type: 'line',
+  data: {
+    labels: labels,
+    datasets: [
+      {
+        label: 'Latency (ms)',
+        data: latencyData,
+        borderColor: '#4dabc4',
+        backgroundColor: 'transparent',
+        yAxisID: 'y',
+        tension: 0.25,
+      },
+      {
+        label: 'Memory (MB)',
+        data: memoryData,
+        borderColor: '#e8a33d',
+        backgroundColor: 'transparent',
+        yAxisID: 'y1',
+        tension: 0.25,
+      },
+    ],
+  },
+  options: {
+    responsive: true,
+    animation: false,
+    interaction: { mode: 'index', intersect: false },
+    scales: {
+      y: {
+        type: 'linear',
+        position: 'left',
+        title: { display: true, text: 'ms', color: '#7c8892' },
+        ticks: { color: '#7c8892' },
+        grid: { color: '#2a323a' },
+      },
+      y1: {
+        type: 'linear',
+        position: 'right',
+        title: { display: true, text: 'MB', color: '#7c8892' },
+        ticks: { color: '#7c8892' },
+        grid: { display: false },
+      },
+      x: {
+        ticks: { color: '#7c8892' },
+        grid: { color: '#2a323a' },
+      },
+    },
+    plugins: {
+      legend: { labels: { color: '#d8dee4' } },
+    },
+  },
+});
+
+function pushPoint(latencyMs, memoryKb) {
+  const t = new Date().toLocaleTimeString();
+  labels.push(t);
+  latencyData.push(latencyMs);
+  memoryData.push(memoryKb / 1024);
+  if (labels.length > maxPoints) {
+    labels.shift();
+    latencyData.shift();
+    memoryData.shift();
+  }
+  chart.update();
+}
+
+function addAlert(text, isFailure) {
+  const el = document.createElement('div');
+  el.className = 'alert-item' + (isFailure ? ' failure' : '');
+  const time = document.createElement('span');
+  time.textContent = new Date().toLocaleTimeString();
+  const msg = document.createElement('span');
+  msg.textContent = text;
+  el.appendChild(time);
+  el.appendChild(msg);
+  alertList.prepend(el);
+  while (alertList.children.length > 25) {
+    alertList.removeChild(alertList.lastChild);
+  }
+}
+
+async function checkConnection() {
+  try {
+    const res = await fetch(apiUrlInput.value + '/', { cache: 'no-store' });
+    if (res.ok) {
+      connDot.classList.add('live');
+      connText.textContent = 'connected';
+      return true;
+    }
+  } catch (e) {}
+  connDot.classList.remove('live');
+  connText.textContent = 'not connected';
+  return false;
+}
+
+async function runPrediction() {
+  predictBtn.disabled = true;
+  predictBtn.textContent = 'Running...';
+
+  const payload = {
+    machine_type: document.getElementById('machineType').value,
+    air_temperature_k: parseFloat(document.getElementById('airTemp').value),
+    process_temperature_k: parseFloat(document.getElementById('processTemp').value),
+    rotational_speed_rpm: parseFloat(document.getElementById('rpm').value),
+    torque_nm: parseFloat(document.getElementById('torque').value),
+    tool_wear_min: parseFloat(document.getElementById('toolWear').value),
+  };
+
+  try {
+    const res = await fetch(apiUrlInput.value + '/predict', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+
+    if (!res.ok) throw new Error('request failed: ' + res.status);
+    const data = await res.json();
+
+    const failed = data.failure_predicted;
+    statResult.textContent = failed ? 'FAILURE' : 'NORMAL';
+    statResultBox.className = 'stat ' + (failed ? 'failure' : 'ok');
+    statProb.textContent = (data.failure_probability * 100).toFixed(1) + '%';
+    statLatency.textContent = data.latency_ms.toFixed(1) + ' ms';
+    statMemory.textContent = (data.memory_kb / 1024).toFixed(1) + ' MB';
+
+    pushPoint(data.latency_ms, data.memory_kb);
+    addAlert(
+      (failed ? 'FAILURE flagged' : 'normal reading') +
+        ` — ${(data.failure_probability * 100).toFixed(1)}% probability`,
+      failed
+    );
+
+    connDot.classList.add('live');
+    connText.textContent = 'connected';
+  } catch (err) {
+    addAlert('request failed — check API URL / CORS / container running', true);
+    connDot.classList.remove('live');
+    connText.textContent = 'not connected';
+  } finally {
+    predictBtn.disabled = false;
+    predictBtn.textContent = 'Run Prediction';
+  }
+}
+
+predictBtn.addEventListener('click', runPrediction);
+apiUrlInput.addEventListener('change', checkConnection);
+
+checkConnection();
+setInterval(checkConnection, 8000);
+</script>
+
+</body>
+</html>
